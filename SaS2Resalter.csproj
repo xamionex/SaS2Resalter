@@ -13,7 +13,7 @@
             https://nuget.bepinex.dev/v3/index.json;
             https://nuget.samboy.dev/v3/index.json
         </RestoreAdditionalProjectSources>
-        <RootNamespace>SaS2Resalter</RootNamespace>
+        <RootNamespace>$(Product)</RootNamespace>
         <DebugType>embedded</DebugType>
     </PropertyGroup>
 
@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Remove="SaS2Resalter\manifest.json"/>
+        <None Remove="$(RootNamespace)\manifest.json"/>
     </ItemGroup>
 
     <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
@@ -94,8 +94,10 @@
     </Target>
 
     <Target Name="ZipProjectDirectory" AfterTargets="Build">
-        <Exec Command="cd $(RootNamespace)/plugins &amp;&amp; zip ../../$(RootNamespace).zip amione.SaS2Resalter.dll" Condition="'$(OS)' == 'Unix'"/>
-        <Exec Command="powershell -Command &quot;Compress-Archive -Path '$(ProjectDir)$(RootNamespace)\plugins\amione.SaS2Resalter.dll' -DestinationPath '$(ProjectDir)$(RootNamespace).zip' -Force&quot;" Condition="'$(OS)' == 'Windows_NT'"/>
+        <Exec Command="cd $(RootNamespace)/plugins &amp;&amp; rm -f ../../$(RootNamespace).zip &amp;&amp; zip ../../$(RootNamespace).zip $(AssemblyName).dll"
+              Condition="'$(OS)' == 'Unix'" />
+        <Exec Command="powershell -Command &quot;Remove-Item -Force '$(ProjectDir)$(RootNamespace).zip' -ErrorAction SilentlyContinue; Compress-Archive -Path '$(ProjectDir)$(RootNamespace)\plugins\$(AssemblyName).dll' -DestinationPath '$(ProjectDir)$(RootNamespace).zip'&quot;"
+              Condition="'$(OS)' == 'Windows_NT'" />
     </Target>
 
 
@@ -103,7 +105,7 @@
         <!-- Set variables for game game file and plugin source -->
         <PropertyGroup>
             <GameLocationFile>$(MSBuildProjectDirectory)/.gamelocation</GameLocationFile>
-            <PluginSource>$(MSBuildProjectDirectory)/SaS2Resalter/plugins/amione.SaS2Resalter.dll</PluginSource>
+            <PluginSource>$(MSBuildProjectDirectory)/$(RootNamespace)/plugins/$(AssemblyName).dll</PluginSource>
         </PropertyGroup>
 
         <!-- Read .gamelocation file if exists -->
@@ -122,14 +124,14 @@
         <!-- 🪟 Windows -->
         <Exec Condition="'$(OS)' == 'Windows_NT' And '$(GamePath)' != ''" Command='
     setlocal EnableDelayedExpansion &amp;&amp;
-    set "TargetPath=$(GamePath)\BepInEx\plugins\SaS2Resalter" &amp;&amp;
+    set "TargetPath=$(GamePath)\BepInEx\plugins\$(RootNamespace)" &amp;&amp;
     if exist "!TargetPath!" rmdir /s /q "!TargetPath!" &amp;&amp;
     xcopy /s /e /y "$(PluginSource)" "!TargetPath!"
   '/>
 
         <!-- 🐧 Linux/macOS -->
         <Exec Condition="'$(OS)' != 'Windows_NT' And '$(GamePath)' != ''" Command='
-    TargetPath="$(GamePath)/BepInEx/plugins/SaS2Resalter" &amp;&amp;
+    TargetPath="$(GamePath)/BepInEx/plugins/$(RootNamespace)" &amp;&amp;
     rm -rf "$TargetPath" &amp;&amp;
     mkdir -p "$TargetPath" &amp;&amp;
     cp -r "$(PluginSource)" "$TargetPath"
