@@ -5,9 +5,8 @@ using LootHero.loot;
 
 namespace SaS2Resalter;
 
-/// Intercepts the game's LootCatalog.Read(string path) so that it opens the  custom loot.zls directly via a FileStream instead of routing through  Loader.GetReader, which cannot resolve absolute BepInEx config paths.
-///
-/// This fires for BOTH the initial game load AND any hot-reload triggered by  RuntimeReloadPatch, no extra wiring needed.
+/// Intercepts the game's LootCatalog.Read(string path) so that it opens the custom loot.zls directly via a FileStream instead of routing through  Loader.GetReader, which cannot resolve absolute BepInEx config paths.
+/// This fires for BOTH the initial game load AND any hot-reload triggered by RuntimeReloadPatch.
 [HarmonyPatch]
 public static class LoadPatch
 {

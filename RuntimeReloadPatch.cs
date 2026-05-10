@@ -6,56 +6,93 @@ using ProjectMage.gamestate;
 
 namespace SaS2Resalter;
 
-/// Watches loot.zls for changes and hot-reloads the catalog between missions.
-/// Actual file I/O is delegated to LoadPatch.ApplyCustomLoot() so we never touch Loader.GetReader.
-[HarmonyPatch]
 public static class RuntimeReloadPatch
 {
-    private static string            _customPath;
-    private static bool              _pendingReload;
     private static FileSystemWatcher _lootWatcher;
+    private static FileSystemWatcher _monsterWatcher;
 
-    public static void Init(string customPath)
+    public static void Init()
     {
-        _customPath = customPath;
-        if (string.IsNullOrEmpty(customPath) || !File.Exists(customPath))
+        var configDir = Path.GetDirectoryName(Plugin.Instance.Config.ConfigFilePath);
+        if (string.IsNullOrEmpty(configDir))
             return;
 
-        var dir  = Path.GetDirectoryName(customPath)!;
-        var file = Path.GetFileName(customPath);
+        Plugin.Instance.Log.LogInfo($"Loading and Watching {Path.Combine(configDir, "amione.SaS2Resalter")}");
 
-        _lootWatcher = new FileSystemWatcher(dir, file)
+        var dataDir = Path.Combine(configDir, "amione.SaS2Resalter");
+        Plugin.CustomLootPath = Path.Combine(dataDir, "loot.zls");
+        Plugin.CustomMonstersPath = Path.Combine(dataDir, "monsters.zms");
+
+        // Ensure the directory exists so the watcher can be created
+        Directory.CreateDirectory(dataDir);
+
+        // Watch the directory for loot.zls changes
+        _lootWatcher = new FileSystemWatcher(dataDir, "loot.zls")
         {
-            NotifyFilter        = NotifyFilters.LastWrite | NotifyFilters.Size,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
             EnableRaisingEvents = true
         };
-        _lootWatcher.Changed += (_, _) => _pendingReload = true;
+        _lootWatcher.Changed += (_, _) => Plugin.PendingLootReload = true;
+        _lootWatcher.Created += (_, _) => Plugin.PendingLootReload = true;
+
+        // Watch the directory for monsters.zms changes
+        _monsterWatcher = new FileSystemWatcher(dataDir, "monsters.zms")
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+            EnableRaisingEvents = true
+        };
+        _monsterWatcher.Changed += (_, _) => Plugin.PendingMonsterReload = true;
+        _monsterWatcher.Created += (_, _) => Plugin.PendingMonsterReload = true;
+
+        Plugin.Instance.Log.LogInfo($"Watching {dataDir} for catalog changes.");
     }
 
     [HarmonyPatch(typeof(Game1), "Update", typeof(GameTime))]
     [HarmonyPostfix]
     private static void Game1UpdatePostfix()
     {
-        if (!_pendingReload) return;
-        if (string.IsNullOrEmpty(_customPath) || !File.Exists(_customPath)) return;
+        if (!Plugin.PendingLootReload && !Plugin.PendingMonsterReload) return;
 
-        // Only reload when no mission is active (safe moment to swap the catalog)
+        // Only reload when no mission is active
         var session = GameSessionMgr.gameSession;
         if (session is { activeMission: >= 0 }) return;
 
-        _pendingReload = false;
-
-        try
+        // Loot reload
+        if (Plugin.PendingLootReload)
         {
-            LoadPatch.ApplyCustomLoot();
-            Plugin.Instance.Log.LogInfo("Loot catalog hot-reloaded from custom loot.zls.");
+            Plugin.PendingLootReload = false;
+            if (File.Exists(Plugin.CustomLootPath))
+            {
+                try
+                {
+                    LoadPatch.ApplyCustomLoot();
+                    Plugin.Instance.Log.LogInfo("Loot catalog hot-reloaded.");
+                }
+                catch (System.Exception ex)
+                {
+                    Plugin.Instance.Log.LogError($"Hot-reload loot failed: {ex}");
+                }
+            }
         }
-        catch (System.Exception ex)
+
+        // Monster reload
+        if (!Plugin.PendingMonsterReload) return;
         {
-            Plugin.Instance.Log.LogError($"Hot-reload failed: {ex}");
+            Plugin.PendingMonsterReload = false;
+            if (!File.Exists(Plugin.CustomMonstersPath)) return;
+            try
+            {
+                MonsterLoadPatch.ApplyCustomMonsters(Plugin.CustomMonstersPath);
+                Plugin.Instance.Log.LogInfo("Monster catalog hot-reloaded.");
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Instance.Log.LogError($"Hot-reload monsters failed: {ex}");
+            }
         }
     }
 
-    /// Allow other code to schedule a reload on the next safe frame.
-    public static void TriggerReload() => _pendingReload = true;
+    /// <summary>Allow other code to schedule a reload on the next safe frame.</summary>
+    public static void TriggerLootReload() => Plugin.PendingLootReload = true;
+    public static void TriggerMonsterReload() => Plugin.PendingMonsterReload = true;
 }
