@@ -1,0 +1,138 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net452</TargetFramework>
+        <AssemblyName>amione.SaS2Resalter</AssemblyName>
+        <Product>SaS2Resalter</Product>
+        <ProductDescription>Loader for custom items</ProductDescription>
+        <Version>1.0.0</Version>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json;
+            https://nuget.samboy.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+        <RootNamespace>SaS2Resalter</RootNamespace>
+        <DebugType>embedded</DebugType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies.net45" Version="1.0.2">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="lib\*.dll" Private="False"/>
+        <Reference Include="lib\*.exe" Private="False"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Remove="SaS2Resalter\manifest.json"/>
+    </ItemGroup>
+
+    <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+        <ItemGroup>
+            <PluginInfoLines Include="internal static class PluginInfo {"/>
+            <PluginInfoLines Include="    public const string PluginGuid = &quot;$(AssemblyName)&quot;%3B"/>
+            <PluginInfoLines Include="    public const string PluginName = &quot;$(Product)&quot;%3B"/>
+            <PluginInfoLines Include="    public const string PluginVersion = &quot;$(Version)&quot;%3B"/>
+            <PluginInfoLines Include="}"/>
+        </ItemGroup>
+        <WriteLinesToFile File="$(ProjectDir)PluginInfo.cs" Lines="@(PluginInfoLines)" Overwrite="true"/>
+    </Target>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <ItemGroup>
+            <BuildFiles Include="$(Outdir)\*"/>
+        </ItemGroup>
+        <Copy SourceFiles="@(BuildFiles)" DestinationFolder="$(ProjectDir)$(RootNamespace)\plugins"/>
+    </Target>
+
+    <UsingTask TaskName="RegexReplaceTask" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll" TaskFactory="RoslynCodeTaskFactory">
+        <ParameterGroup>
+            <InputFile/>
+            <VersionValue Required="true"/>
+            <AssemblyName Required="true"/>
+            <ProductDescription Required="true"/>
+            <Product Required="true"/>
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.IO"/>
+            <Using Namespace="System.Text.RegularExpressions"/>
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+          string content = File.ReadAllText(InputFile);
+
+          // Replace "version"
+          content = Regex.Replace(content, @"""version"":\s*""[^""]*""", $@"""version"": ""{VersionValue}""");
+
+          // Replace "id"
+          content = Regex.Replace(content, @"""id"":\s*""[^""]*""", $@"""id"": ""{AssemblyName}""");
+
+          // Replace "name"
+          content = Regex.Replace(content, @"""name"":\s*""[^""]*""", $@"""name"": ""{Product}""");
+
+          // Replace "description"
+          content = Regex.Replace(content, @"""description"":\s*""[^""]*""", $@"""description"": ""{ProductDescription}""");
+
+          File.WriteAllText(InputFile, content);
+        ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+
+    <Target Name="UpdateModInfo" AfterTargets="Build">
+        <RegexReplaceTask
+                InputFile="$(ProjectDir)$(RootNamespace)\manifest.json"
+                VersionValue="$(Version)"
+                AssemblyName="$(AssemblyName)"
+                ProductDescription="$(ProductDescription)"
+                Product="$(Product)"/>
+    </Target>
+
+    <Target Name="ZipProjectDirectory" AfterTargets="Build">
+        <Exec Command="cd $(RootNamespace)/plugins &amp;&amp; zip ../../$(RootNamespace).zip amione.SaS2Resalter.dll" Condition="'$(OS)' == 'Unix'"/>
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path '$(ProjectDir)$(RootNamespace)\plugins\amione.SaS2Resalter.dll' -DestinationPath '$(ProjectDir)$(RootNamespace).zip' -Force&quot;" Condition="'$(OS)' == 'Windows_NT'"/>
+    </Target>
+
+
+    <Target Name="PostBuildCopyToGameFolder" AfterTargets="Build">
+        <!-- Set variables for game game file and plugin source -->
+        <PropertyGroup>
+            <GameLocationFile>$(MSBuildProjectDirectory)/.gamelocation</GameLocationFile>
+            <PluginSource>$(MSBuildProjectDirectory)/SaS2Resalter/plugins/amione.SaS2Resalter.dll</PluginSource>
+        </PropertyGroup>
+
+        <!-- Read .gamelocation file if exists -->
+        <ReadLinesFromFile File="$(GameLocationFile)" Condition="Exists('$(GameLocationFile)')">
+            <Output TaskParameter="Lines" ItemName="_GameLocationLines"/>
+        </ReadLinesFromFile>
+
+        <!-- Extract first non-empty line as path -->
+        <PropertyGroup>
+            <GamePath Condition="'@(_GameLocationLines)' != ''">$([System.Text.RegularExpressions.Regex]::Match(%(_GameLocationLines.Identity), `^\s*(.+?)\s*$`).Groups[1].Value)</GamePath>
+        </PropertyGroup>
+
+        <!-- Warning if no valid path found -->
+        <Warning Condition="'$(GamePath)' == ''" Text="Skipping game folder copy: .gamelocation file not found or empty"/>
+
+        <!-- 🪟 Windows -->
+        <Exec Condition="'$(OS)' == 'Windows_NT' And '$(GamePath)' != ''" Command='
+    setlocal EnableDelayedExpansion &amp;&amp;
+    set "TargetPath=$(GamePath)\BepInEx\plugins\SaS2Resalter" &amp;&amp;
+    if exist "!TargetPath!" rmdir /s /q "!TargetPath!" &amp;&amp;
+    xcopy /s /e /y "$(PluginSource)" "!TargetPath!"
+  '/>
+
+        <!-- 🐧 Linux/macOS -->
+        <Exec Condition="'$(OS)' != 'Windows_NT' And '$(GamePath)' != ''" Command='
+    TargetPath="$(GamePath)/BepInEx/plugins/SaS2Resalter" &amp;&amp;
+    rm -rf "$TargetPath" &amp;&amp;
+    mkdir -p "$TargetPath" &amp;&amp;
+    cp -r "$(PluginSource)" "$TargetPath"
+  '/>
+    </Target>
+</Project>
