@@ -33,7 +33,7 @@ public static class MonsterLoadPatch
     /// Can be called at startup and during hot-reloads.
     public static void ApplyCustomMonsters(string customPath)
     {
-        using var fs     = new FileStream(customPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var fs = new FileStream(customPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new BinaryReader(fs);
         MonsterCatalog.Read(reader); // reads the whole catalog
 

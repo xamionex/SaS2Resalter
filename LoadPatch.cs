@@ -37,18 +37,18 @@ public static class LoadPatch
     /// Can also be called by RuntimeReloadPatch for explicit hot-reloads.
     public static void ApplyCustomLoot()
     {
-        using var fs     = new FileStream(Plugin.CustomLootPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var fs = new FileStream(Plugin.CustomLootPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new BinaryReader(fs);
         LootCatalog.Read(reader); // calls the BinaryReader overload directly
 
         // replicate the post-read index setup from LootCatalog.Read(string)
-        LootCatalog.totalReplenishTypes   = 0;
-        LootCatalog.smallClothesArmorIdx  = LootCatalog.GetLootIdxOrNegative("smallclothes_armor");
-        LootCatalog.smallClothesBootsIdx  = LootCatalog.GetLootIdxOrNegative("smallclothes_boots");
-        LootCatalog.cloudFeatherIdx       = LootCatalog.GetLootIdxOrNegative("revive_feather");
-        LootCatalog.unarmedIdx            = LootCatalog.GetLootIdxOrNegative("unarmed");
+        LootCatalog.totalReplenishTypes = 0;
+        LootCatalog.smallClothesArmorIdx = LootCatalog.GetLootIdxOrNegative("smallclothes_armor");
+        LootCatalog.smallClothesBootsIdx = LootCatalog.GetLootIdxOrNegative("smallclothes_boots");
+        LootCatalog.cloudFeatherIdx = LootCatalog.GetLootIdxOrNegative("revive_feather");
+        LootCatalog.unarmedIdx = LootCatalog.GetLootIdxOrNegative("unarmed");
 
-        var attack  = new List<int>();
+        var attack = new List<int>();
         var defense = new List<int>();
         var utility = new List<int>();
 
@@ -62,7 +62,7 @@ public static class LoadPatch
                 case 6:
                     switch (def.subType)
                     {
-                        case 3: attack.Add(i);  break; // SUBTYPE_ARTIFACT_ATTACK
+                        case 3: attack.Add(i); break; // SUBTYPE_ARTIFACT_ATTACK
                         case 4: defense.Add(i); break; // SUBTYPE_ARTIFACT_DEFENSE
                         case 5: utility.Add(i); break; // SUBTYPE_ARTIFACT_UTILITY
                     }
@@ -75,7 +75,7 @@ public static class LoadPatch
             }
         }
 
-        LootCatalog.artifactIdx    = new int[3][];
+        LootCatalog.artifactIdx = new int[3][];
         LootCatalog.artifactIdx[0] = attack.ToArray();
         LootCatalog.artifactIdx[1] = defense.ToArray();
         LootCatalog.artifactIdx[2] = utility.ToArray();

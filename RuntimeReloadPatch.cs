@@ -94,5 +94,6 @@ public static class RuntimeReloadPatch
 
     /// <summary>Allow other code to schedule a reload on the next safe frame.</summary>
     public static void TriggerLootReload() => Plugin.PendingLootReload = true;
+
     public static void TriggerMonsterReload() => Plugin.PendingMonsterReload = true;
 }

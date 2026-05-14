@@ -51,6 +51,7 @@ public static class SimpleJson
                 if (pos < json.Length && json[pos] == ',')
                     pos++;
             }
+
             Expect(json, ref pos, '}');
 
             result[weapon] = slots;
@@ -59,6 +60,7 @@ public static class SimpleJson
             if (pos < json.Length && json[pos] == ',')
                 pos++;
         }
+
         Expect(json, ref pos, '}');
         return result;
     }
@@ -102,6 +104,7 @@ public static class SimpleJson
             if (s[pos] == '.') hasDot = true;
             pos++;
         }
+
         if (pos == start || (pos > start && s[start] == '.' && pos == start + 1))
             throw new Exception($"Invalid number at position {start}");
         return float.Parse(s.Substring(start, pos - start),
