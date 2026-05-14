@@ -1,5 +1,5 @@
 # SaS2Resalter
 
-Loader for custom edits for Salt and Sacrifice
+Loader for custom edits for Salt and Sacrifice, to be used with Resalinator
 
 Made with https://github.com/xamionex/SaltAndSacrificeBepInExTemplate

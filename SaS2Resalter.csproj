@@ -4,7 +4,7 @@
         <TargetFramework>net452</TargetFramework>
         <AssemblyName>amione.SaS2Resalter</AssemblyName>
         <Product>SaS2Resalter</Product>
-        <ProductDescription>Loader for custom edits for Salt and Sacrifice</ProductDescription>
+        <ProductDescription>Loader for custom edits for Salt and Sacrifice, to be used with Resalinator</ProductDescription>
         <Version>1.0.3</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
