@@ -65,6 +65,122 @@ public static class SimpleJson
         return result;
     }
 
+    /// Parses a flat JSON object like { "0": 1.5, "14": 2.0 } into a string->float map.
+    public static Dictionary<string, float> ParseStringFloatMap(string json)
+    {
+        var result = new Dictionary<string, float>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var key = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+            var value = ReadNumber(json, ref pos);
+
+            result[key] = value;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
+    /// Parses charm boost configs like
+    /// { "0": { "min":1.0, "max":2.0, "static_boost":false, "static_value":1.0 }, ... }
+    /// into a dictionary mapping flag string to float[4] {min, max, static_boost, static_value}.
+    public static Dictionary<string, float[]> ParseCharmBoosts(string json)
+    {
+        var result = new Dictionary<string, float[]>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var key = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+
+            var arr = new float[4] { 1f, 1f, 0f, 1f };
+            Expect(json, ref pos, '{');
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length || json[pos] == '}')
+                    break;
+
+                var field = ReadString(json, ref pos);
+                SkipWhitespace(json, ref pos);
+                Expect(json, ref pos, ':');
+                SkipWhitespace(json, ref pos);
+
+                switch (field)
+                {
+                    case "min": arr[0] = ReadNumber(json, ref pos); break;
+                    case "max": arr[1] = ReadNumber(json, ref pos); break;
+                    case "static_boost": arr[2] = ReadBool(json, ref pos) ? 1f : 0f; break;
+                    case "static_value": arr[3] = ReadNumber(json, ref pos); break;
+                    default: SkipValue(json, ref pos); break;
+                }
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                    pos++;
+            }
+            Expect(json, ref pos, '}');
+
+            result[key] = arr;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
+    private static bool ReadBool(string s, ref int pos)
+    {
+        SkipWhitespace(s, ref pos);
+        if (pos + 4 <= s.Length && s.Substring(pos, 4) == "true") { pos += 4; return true; }
+        if (pos + 5 <= s.Length && s.Substring(pos, 5) == "false") { pos += 5; return false; }
+        throw new Exception($"Expected bool at position {pos}");
+    }
+
+    private static void SkipValue(string s, ref int pos)
+    {
+        SkipWhitespace(s, ref pos);
+        if (pos < s.Length && s[pos] == '"')
+        {
+            ReadString(s, ref pos);
+            return;
+        }
+        var start = pos;
+        while (pos < s.Length && s[pos] != ',' && s[pos] != '}')
+            pos++;
+        if (pos == start)
+            throw new Exception($"Invalid value at position {start}");
+    }
+
     private static void SkipWhitespace(string s, ref int pos)
     {
         while (pos < s.Length && char.IsWhiteSpace(s[pos]))
