@@ -10,8 +10,10 @@ public class Plugin : BasePlugin
     internal static Plugin Instance;
     internal static string CustomLootPath;
     internal static string CustomMonstersPath;
+    internal static string CustomDialogPath;
     internal static bool PendingLootReload;
     internal static bool PendingMonsterReload;
+    internal static bool PendingDialogReload;
 
     public override void Load()
     {
