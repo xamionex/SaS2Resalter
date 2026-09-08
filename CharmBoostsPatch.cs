@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using BepInEx;
+using Chronicler.dialog;
 using HarmonyLib;
+using LootHero.loot;
 using ProjectMage.player;
 
 namespace SaS2Resalter;
@@ -34,8 +37,15 @@ public static class CharmBoostsPatch
     private static Dictionary<string, float[]> _boosts;
     private static long _lastFileTime;
     private static readonly Random _rand = new();
+    // Min/max rolls are cached per flag so the value stays stable between config reloads
+    // instead of re-rolling on every GetCharmVal call (which would flicker stats like MaxHP).
+    private static readonly Dictionary<int, float> _rolledValues = new();
 
-    public static void ReloadConfig() => _boosts = null;
+    public static void ReloadConfig()
+    {
+        _boosts = null;
+        _rolledValues.Clear();
+    }
 
     private static Dictionary<string, float[]> Boosts
     {
@@ -116,27 +126,134 @@ public static class CharmBoostsPatch
         {
             var min = b[0];
             var max = b[1];
-            value = max <= min ? min : min + (float)_rand.NextDouble() * (max - min);
+            if (max <= min)
+            {
+                value = min;
+            }
+            else if (!_rolledValues.TryGetValue(flag, out value))
+            {
+                value = min + (float)_rand.NextDouble() * (max - min);
+                _rolledValues[flag] = value;
+            }
         }
         return value / vanilla;
     }
 
+    /// The configured actual magnitude for a flag, or -1 if not overridden.
+    /// This is the value the tooltip should show (the scalar times the vanilla magnitude).
+    public static float GetBoostValue(int flag)
+    {
+        var scalar = GetBoostScalar(flag);
+        return scalar < 0f ? -1f : scalar * VanillaValue(flag);
+    }
+
+    /// The localized string index the vanilla charm tooltip uses for each flag, or -1 if the flag has no tooltip line.
+    private static int GetFlagLocStrIdx(int flag)
+    {
+        switch (flag)
+        {
+            case 0: return 508;
+            case 1: return 511;
+            case 2: return 502;
+            case 3: return 533;
+            case 4: return 522;
+            case 5: return 506;
+            case 6: return 521;
+            case 7: return 513;
+            case 8: return 514;
+            case 10: return 532;
+            case 11: return 545;
+            case 12: return 548;
+            case 13: return 543;
+            case 14: return 505;
+            case 15: return 515;
+            case 16: return 512;
+            case 17: return 503;
+            case 18: return 534;
+            case 19: return 523;
+            case 20: return 507;
+            case 29: return 500;
+            case 30: return 520;
+            case 31: return 525;
+            case 32: return 528;
+            case 33: return 526;
+            case 34: return 538;
+            case 35: return 509;
+            case 36: return 519;
+            case 37: return 535;
+            case 38: return 524;
+            case 39: return 544;
+            case 40: return 530;
+            case 41: return 529;
+            case 42: return 540;
+            case 43: return 539;
+            case 44: return 536;
+            case 45: return 531;
+            case 46: return 541;
+            case 47: return 547;
+            case 48: return 499;
+            case 49: return 542;
+            case 50: return 510;
+            case 51: return 527;
+            case 52: return 516;
+            case 53: return 517;
+            case 54: return 518;
+            default: return -1;
+        }
+    }
+
     [HarmonyPatch(typeof(PlayerEquipment), "GetCharmVal")]
-    [HarmonyPrefix]
+    [HarmonyPostfix]
     // ReSharper disable once InconsistentNaming
-    private static bool GetCharmVal_Prefix(int flag, ref float __result)
+    private static void GetCharmVal_Postfix(PlayerEquipment __instance, int flag, ref float __result)
     {
         try
         {
+            // Only override when the player actually has the flag equipped: vanilla returns 0
+            // when no equipped talisman carries it, and the override must not leak into stats
+            // for charms that are merely owned or in the shop preview.
+            if (__result <= 0f) return;
             var scalar = GetBoostScalar(flag);
-            if (scalar < 0f) return true; // no override, let the original run
+            if (scalar < 0f) return; // no override, keep the original
             __result = scalar;
-            return false; // skip the original
         }
         catch (Exception ex)
         {
             Plugin.Instance.Log.LogWarning($"[CharmBoosts] Failed to apply: {ex.Message}");
-            return true;
+        }
+    }
+
+    /// Append the configured magnitude to each flag line of the charm tooltip, so the UI shows
+    /// the boosted values instead of only the flag names. Flag names come from the game's
+    /// localized string table (the same entries the vanilla tooltip uses).
+    [HarmonyPatch(typeof(PlayerItem), "GetCharmDesc")]
+    [HarmonyPostfix]
+    // ReSharper disable once InconsistentNaming
+    private static void GetCharmDesc_Postfix(PlayerItem __instance, LootDef lDef, ref string __result)
+    {
+        try
+        {
+            if (__result == null || lDef == null || lDef.flags == null || lDef.flags.Count == 0) return;
+            var sb = new StringBuilder(__result);
+            foreach (var flag in lDef.flags)
+            {
+                var v = GetBoostValue(flag);
+                if (v < 0f) continue;
+                var locIdx = GetFlagLocStrIdx(flag);
+                if (locIdx < 0) continue;
+                var name = LocStrings.GetLocStr(locIdx);
+                var unit = flag >= 13 && flag <= 20 || flag >= 30 && flag <= 37 || flag >= 39 && flag <= 46 || flag >= 48 && flag <= 50 || flag >= 52 && flag <= 53 ? "%" : "";
+                sb.Append("\r\n");
+                sb.Append(name);
+                sb.Append(": +");
+                sb.Append(v.ToString("0.0"));
+                sb.Append(unit);
+            }
+            __result = sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            Plugin.Instance.Log.LogWarning($"[CharmBoosts] Tooltip failed: {ex.Message}");
         }
     }
 }

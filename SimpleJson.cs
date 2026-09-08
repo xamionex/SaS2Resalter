@@ -158,6 +158,62 @@ public static class SimpleJson
         return result;
     }
 
+    /// Parses monster field multiplier configs like
+    /// { "ash_imp": { "42": 1.5, "43": 0.5 }, ... }
+    /// into a dictionary mapping monster name to field id -> multiplier.
+    public static Dictionary<string, Dictionary<int, float>> ParseMonsterFieldMults(string json)
+    {
+        var result = new Dictionary<string, Dictionary<int, float>>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var monster = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+
+            var fields = new Dictionary<int, float>();
+            Expect(json, ref pos, '{');
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length || json[pos] == '}')
+                    break;
+
+                var key = ReadString(json, ref pos);
+                SkipWhitespace(json, ref pos);
+                Expect(json, ref pos, ':');
+                SkipWhitespace(json, ref pos);
+                var value = ReadNumber(json, ref pos);
+
+                if (int.TryParse(key, out var fieldId))
+                    fields[fieldId] = value;
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                    pos++;
+            }
+            Expect(json, ref pos, '}');
+
+            result[monster] = fields;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
     private static bool ReadBool(string s, ref int pos)
     {
         SkipWhitespace(s, ref pos);
