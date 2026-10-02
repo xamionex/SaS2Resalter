@@ -11,6 +11,7 @@ public static class RuntimeReloadPatch
     private static FileSystemWatcher _lootWatcher;
     private static FileSystemWatcher _monsterWatcher;
     private static FileSystemWatcher _dialogWatcher;
+    private static FileSystemWatcher _hazeburntSpawnWatcher;
 
     public static void Init()
     {
@@ -58,13 +59,23 @@ public static class RuntimeReloadPatch
         _dialogWatcher.Created += (_, _) => Plugin.PendingDialogReload = true;
 
         Plugin.Instance.Log.LogInfo($"Watching {dataDir} for catalog changes.");
+
+        // Watch the hazeburnt spawn pools so they can be re-applied without restarting.
+        _hazeburntSpawnWatcher = new FileSystemWatcher(dataDir, "hazeburnt_spawns.json")
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
+            EnableRaisingEvents = true
+        };
+        _hazeburntSpawnWatcher.Changed += (_, _) => Plugin.PendingHazeburntReload = true;
+        _hazeburntSpawnWatcher.Created += (_, _) => Plugin.PendingHazeburntReload = true;
     }
 
     [HarmonyPatch(typeof(Game1), "Update", typeof(GameTime))]
     [HarmonyPostfix]
     private static void Game1UpdatePostfix()
     {
-        if (!Plugin.PendingLootReload && !Plugin.PendingMonsterReload && !Plugin.PendingDialogReload) return;
+        if (!Plugin.PendingLootReload && !Plugin.PendingMonsterReload && !Plugin.PendingDialogReload &&
+            !Plugin.PendingHazeburntReload) return;
 
         // Only reload when no mission is active
         var session = GameSessionMgr.gameSession;
@@ -119,6 +130,21 @@ public static class RuntimeReloadPatch
                 Plugin.Instance.Log.LogError($"Hot-reload dialog failed: {ex}");
             }
         }
+
+        // Hazeburnt spawn pools: rebuild the per-area lists from the config.
+        if (Plugin.PendingHazeburntReload)
+        {
+            Plugin.PendingHazeburntReload = false;
+            try
+            {
+                GameSessionMgr.gameSession?.hazeburntMgr?.PopulateHazeburntMonsters();
+                Plugin.Instance.Log.LogInfo("Hazeburnt spawn pools hot-reloaded.");
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Instance.Log.LogError($"Hot-reload hazeburnt spawns failed: {ex}");
+            }
+        }
     }
 
     /// <summary>Allow other code to schedule a reload on the next safe frame.</summary>
@@ -127,4 +153,6 @@ public static class RuntimeReloadPatch
     public static void TriggerMonsterReload() => Plugin.PendingMonsterReload = true;
 
     public static void TriggerDialogReload() => Plugin.PendingDialogReload = true;
+
+    public static void TriggerHazeburntSpawnReload() => Plugin.PendingHazeburntReload = true;
 }

@@ -10,11 +10,9 @@ namespace SaS2Resalter;
 /// <summary>
 /// Applies per-monster, per-field multipliers to monster float fields.
 ///
-/// The game copies the catalog's float fields into the live GameMonster at read time
-/// (MonsterDef.Read -> GameMonster.ProcessFlags: Hover Speed, Hover Accel, Run speed,
-/// Poise, ...) and reads the rest on demand via GameMonster.GetFieldFloat. Multiplying
-/// the field value right after it is read from the file covers every consumer, including
-/// the movement fields cached in ProcessFlags.
+/// The game copies the catalog's float fields into the live GameMonster at read time (MonsterDef.Read -> GameMonster.ProcessFlags:
+/// Hover Speed, Hover Accel, Run speed, Poise, ...) and reads the rest on demand via GameMonster.GetFieldFloat.
+/// Multiplying the field value right after it is read from the file covers every consumer, including the movement fields cached in ProcessFlags.
 ///
 /// Config: BepInEx/config/amione.SaS2Resalter/monster_field_mults.json
 /// <code>
@@ -23,8 +21,7 @@ namespace SaS2Resalter;
 ///   "bargeling": { "9": 2.0 }
 /// }
 /// </code>
-/// Keys are monster names, values map field id to a multiplier (1.0 = unchanged,
-/// 0.5 = half, 2.0 = double). 0 / negative are treated as unchanged.
+/// Keys are monster names, values map field id to a multiplier (1.0 = unchanged, 0.5 = half, 2.0 = double). 0 / negative are treated as unchanged.
 /// Written by the editor on apply.
 /// </summary>
 [HarmonyPatch]
@@ -67,7 +64,7 @@ public static class MonsterFieldMultPatch
     /// Peek the monster name at the start of MonsterDef.Read without consuming the stream.
     /// The name is the first string in the def, so the prefix reads it and rewinds.
     /// MonsterDef.Read is internal, so it is patched by name (AccessTools resolves it).
-    [HarmonyPatch(typeof(MonsterDef), "Read", new[] { typeof(BinaryReader) })]
+    [HarmonyPatch(typeof(MonsterDef), "Read", typeof(BinaryReader))]
     [HarmonyPrefix]
     private static void MonsterDefRead_Pre(BinaryReader reader)
     {
@@ -90,7 +87,7 @@ public static class MonsterFieldMultPatch
     {
         try
         {
-            if (__instance == null || __instance.dataType != MonsterField.DATA_TYPE_FLOAT) return;
+            if (__instance is not { dataType: MonsterField.DATA_TYPE_FLOAT }) return;
             if (_currentMonster == null) return;
             if (!Mults.TryGetValue(_currentMonster, out var fields)) return;
             if (!fields.TryGetValue(__instance.ID, out var mul)) return;

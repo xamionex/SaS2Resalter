@@ -214,6 +214,164 @@ public static class SimpleJson
         return result;
     }
 
+    /// Parses string-keyed arrays of ints like
+    /// { "player": [67, 34], "enemy": [55, 71] }
+    /// into a dictionary mapping each key to its list of ints.
+    public static Dictionary<string, List<int>> ParseIntLists(string json)
+    {
+        var result = new Dictionary<string, List<int>>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var key = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+
+            var values = new List<int>();
+            Expect(json, ref pos, '[');
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length || json[pos] == ']')
+                    break;
+
+                var value = ReadNumber(json, ref pos);
+                values.Add((int)value);
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                    pos++;
+            }
+            Expect(json, ref pos, ']');
+
+            result[key] = values;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
+    /// Parses numeric-string-keyed arrays of strings like
+    /// { "1": ["burnt_wolf"], "2": [] }
+    /// into a dictionary mapping each number to its list of strings.
+    public static Dictionary<int, List<string>> ParseIntKeyedStringLists(string json)
+    {
+        var result = new Dictionary<int, List<string>>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var key = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+
+            var values = new List<string>();
+            Expect(json, ref pos, '[');
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length || json[pos] == ']')
+                    break;
+
+                values.Add(ReadString(json, ref pos));
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                    pos++;
+            }
+            Expect(json, ref pos, ']');
+
+            if (int.TryParse(key, out var area))
+                result[area] = values;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
+    /// Parses string-keyed arrays of strings/ints like
+    /// { "player": ["item:firebomb", "type:17", 82], "enemy": [] }
+    /// into a dictionary mapping each key to its set of entries.
+    /// Bare numbers become "type:N" so configs written before item keys existed keep working.
+    public static Dictionary<string, HashSet<string>> ParseStringLists(string json)
+    {
+        var result = new Dictionary<string, HashSet<string>>();
+        var pos = 0;
+
+        SkipWhitespace(json, ref pos);
+        Expect(json, ref pos, '{');
+
+        while (pos < json.Length)
+        {
+            SkipWhitespace(json, ref pos);
+            if (pos >= json.Length || json[pos] == '}')
+                break;
+
+            var key = ReadString(json, ref pos);
+            SkipWhitespace(json, ref pos);
+            Expect(json, ref pos, ':');
+            SkipWhitespace(json, ref pos);
+
+            var values = new HashSet<string>();
+            Expect(json, ref pos, '[');
+            while (pos < json.Length)
+            {
+                SkipWhitespace(json, ref pos);
+                if (pos >= json.Length || json[pos] == ']')
+                    break;
+
+                if (json[pos] == '"')
+                {
+                    values.Add(ReadString(json, ref pos));
+                }
+                else
+                {
+                    var number = ReadNumber(json, ref pos);
+                    values.Add("type:" + (int)number);
+                }
+
+                SkipWhitespace(json, ref pos);
+                if (pos < json.Length && json[pos] == ',')
+                    pos++;
+            }
+            Expect(json, ref pos, ']');
+
+            result[key] = values;
+
+            SkipWhitespace(json, ref pos);
+            if (pos < json.Length && json[pos] == ',')
+                pos++;
+        }
+
+        Expect(json, ref pos, '}');
+        return result;
+    }
+
     private static bool ReadBool(string s, ref int pos)
     {
         SkipWhitespace(s, ref pos);

@@ -14,6 +14,7 @@ public class Plugin : BasePlugin
     internal static bool PendingLootReload;
     internal static bool PendingMonsterReload;
     internal static bool PendingDialogReload;
+    internal static bool PendingHazeburntReload;
 
     public override void Load()
     {
